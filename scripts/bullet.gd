@@ -4,15 +4,17 @@ const ART := preload("res://Assets/Weapon/projectile pistol.png")
 const SPEED := 1130.0
 const LIFETIME := 1.25
 
-var direction := 1
+var direction := Vector2.RIGHT
 var lifetime := LIFETIME
 var previous_position := Vector2.ZERO
+var hostile := false
 
 
-func setup(origin: Vector2, muzzle: Vector2, shot_direction: int) -> void:
+func setup(origin: Vector2, muzzle: Vector2, shot_direction: Vector2, range_scale: float = 1.0) -> void:
 	previous_position = origin
 	position = muzzle
 	direction = shot_direction
+	lifetime = LIFETIME * range_scale
 
 
 func _ready() -> void:
@@ -21,23 +23,29 @@ func _ready() -> void:
 	sprite.texture = ART
 	sprite.scale = Vector2(0.32, 0.32)
 	sprite.offset.x = -ART.get_width() * 0.5
-	sprite.rotation = PI if direction < 0 else 0.0
+	sprite.rotation = direction.angle()
 	add_child(sprite)
 
 
 func _physics_process(delta: float) -> void:
-	var next_position := global_position + Vector2(direction * SPEED * delta, 0.0)
-	var ray := PhysicsRayQueryParameters2D.create(previous_position, next_position, 3)
-	var hit := get_world_2d().direct_space_state.intersect_ray(ray)
+	var travel_time := minf(delta, lifetime)
+	var next_position := global_position + direction * SPEED * travel_time
+	var space := get_world_2d().direct_space_state
+	var mask := 5 if hostile else 11
+	var hit := {}
+	if previous_position != global_position:
+		hit = space.intersect_ray(PhysicsRayQueryParameters2D.create(previous_position, global_position, mask))
+	if hit.is_empty():
+		hit = space.intersect_ray(PhysicsRayQueryParameters2D.create(global_position, next_position, mask))
 	if not hit.is_empty():
 		var collider: Object = hit.collider
 		if collider.has_method(&"take_hit"):
-			collider.take_hit(hit.position, direction)
+			collider.take_hit(hit.position, 1 if direction.x > 0.0 else -1)
 		queue_free()
 		return
 
 	global_position = next_position
 	previous_position = next_position
-	lifetime -= delta
+	lifetime -= travel_time
 	if lifetime <= 0.0:
 		queue_free()
