@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cy1pyd83pkp85"
-path="res://.godot/imported/Feline cowboy run-and-gun sprite atlas.png-c83e34aa4641cab02a3adcd34fd84738.ctex"
+uid="uid://bgsqaxqa5k0i4"
+path="res://.godot/imported/2_3.png-d19226542e771a932861f6b6fff18a18.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Assets/Character/Main/Feline cowboy run-and-gun sprite atlas.png"
-dest_files=["res://.godot/imported/Feline cowboy run-and-gun sprite atlas.png-c83e34aa4641cab02a3adcd34fd84738.ctex"]
+source_file="res://Assets/Effect/dynamite_explosion/2_3.png"
+dest_files=["res://.godot/imported/2_3.png-d19226542e771a932861f6b6fff18a18.ctex"]
 
 [params]
 

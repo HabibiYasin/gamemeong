@@ -121,6 +121,6 @@ theme_override_colors/default_color = Color(1, 0.883, 0.779, 1)
 theme_override_fonts/normal_font = SubResource("InterfaceFont")
 theme_override_font_sizes/normal_font_size = 18
 bbcode_enabled = true
-text = "[center][color=#ffb96d]A / D atau ← / →[/color]  Jalan     [color=#86604b]·[/color]     [color=#ffb96d]Spasi / W / ↑[/color]  Lompat     [color=#86604b]·[/color]     [color=#ffb96d]F / Klik kiri[/color]  Tembak     [color=#86604b]·[/color]     [color=#ffb96d]R[/color]  Ulang     [color=#86604b]·[/color]     [color=#ffb96d]Esc[/color]  Menu[/center]"
+text = "[center][color=#ffb96d]A / D atau ← / →[/color]  Jalan     [color=#86604b]·[/color]     [color=#ffb96d]Spasi / W / ↑[/color]  Lompat     [color=#86604b]·[/color]     [color=#ffb96d]J[/color]  Tembak     [color=#86604b]?[/color]     [color=#ffb96d]K[/color]  Lempar dinamit     [color=#86604b]·[/color]     [color=#ffb96d]R[/color]  Ulang     [color=#86604b]·[/color]     [color=#ffb96d]Esc[/color]  Menu[/center]"
 scroll_active = false
 autowrap_mode = 0

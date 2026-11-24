@@ -20,6 +20,7 @@ var shot_direction := 1
 
 
 func _ready() -> void:
+	add_to_group(&"practice_targets")
 	collision_layer = 2
 	collision_mask = 0
 	var shape := RectangleShape2D.new()
@@ -29,6 +30,13 @@ func _ready() -> void:
 	collider.position = CAN.get_center()
 	add_child(collider)
 	set_process(false)
+
+
+func take_blast(center: Vector2, radius: float) -> void:
+	var can_center := to_global(CAN.get_center())
+	if can_center.distance_squared_to(center) <= radius * radius:
+		var direction := 1 if can_center.x >= center.x else -1
+		take_hit(can_center, direction)
 
 
 func take_hit(hit_position: Vector2, direction: int) -> void:

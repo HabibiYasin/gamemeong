@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/menu.gd" id="1"]
 [ext_resource type="Texture2D" path="res://Assets/Background/2/background.png" id="2"]
-[ext_resource type="Texture2D" path="res://Assets/Character/Main/Feline cowboy run-and-gun sprite atlas.png" id="3"]
+[ext_resource type="Texture2D" path="res://Assets/Character/Main/Grey full.png" id="3"]
 
 [sub_resource type="Gradient" id="Shade"]
 offsets = PackedFloat32Array(0, 0.32, 0.64, 1)

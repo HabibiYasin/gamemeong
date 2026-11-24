@@ -1,7 +1,9 @@
 extends CharacterBody2D
 
 const Bullet := preload("res://scripts/bullet.gd")
-const ATLAS := preload("res://Assets/Character/Main/Feline cowboy run-and-gun sprite atlas.png")
+const Dynamite := preload("res://scripts/dynamite.gd")
+const ATLAS := preload("res://Assets/Character/Main/Grey full.png")
+const THROW_ATLAS := preload("res://Assets/Character/Main/Grey throw dynamite.png")
 const FRAME_SIZE := Vector2i(237, 222)
 const SPEED := 335.0
 const ACCELERATION := 2500.0
@@ -16,6 +18,8 @@ var facing := 1
 var coyote_time := 0.0
 var jump_buffer := 0.0
 var shot_cooldown := 0.0
+var throwing := false
+var dynamite_released := false
 
 
 func _ready() -> void:
@@ -27,7 +31,18 @@ func _ready() -> void:
 	_add_animation(frames, &"run_shoot", 914, [1, 2, 3], 15.0, false)
 	_add_animation(frames, &"jump", 1380, [1], 1.0)
 	_add_animation(frames, &"fall", 1380, [2], 1.0)
+	frames.add_animation(&"throw")
+	frames.set_animation_speed(&"throw", 12.0)
+	frames.set_animation_loop(&"throw", false)
+	for column in range(4):
+		var frame := AtlasTexture.new()
+		frame.atlas = THROW_ATLAS
+		frame.region = Rect2(column * 543, 0, 543, 724)
+		frame.filter_clip = true
+		frames.add_frame(&"throw", frame)
 	sprite.sprite_frames = frames
+	sprite.frame_changed.connect(_on_sprite_frame_changed)
+	sprite.animation_finished.connect(_on_animation_finished)
 	sprite.play(&"idle")
 
 
@@ -53,7 +68,7 @@ func _add_animation(
 
 func _physics_process(delta: float) -> void:
 	var direction := Input.get_axis(&"move_left", &"move_right")
-	if direction != 0.0:
+	if direction != 0.0 and not throwing:
 		facing = 1 if direction > 0.0 else -1
 		sprite.flip_h = facing < 0
 	velocity.x = move_toward(velocity.x, direction * SPEED, ACCELERATION * delta)
@@ -76,10 +91,41 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 	shot_cooldown = maxf(shot_cooldown - delta, 0.0)
-	if Input.is_action_pressed(&"shoot") and shot_cooldown <= 0.0:
+	if throwing:
+		return
+	if Input.is_action_just_pressed(&"throw_dynamite"):
+		_start_throw()
+	elif Input.is_action_pressed(&"shoot") and shot_cooldown <= 0.0:
 		_shoot()
 	elif shot_cooldown <= 0.04:
 		_animate_movement()
+
+
+func _start_throw() -> void:
+	throwing = true
+	dynamite_released = false
+	sprite.scale = Vector2.ONE * 0.22
+	sprite.position.y = -57.0
+	sprite.play(&"throw")
+
+
+func _on_sprite_frame_changed() -> void:
+	if not throwing or dynamite_released or sprite.animation != &"throw" or sprite.frame < 2:
+		return
+	dynamite_released = true
+	var dynamite := Dynamite.new()
+	dynamite.position = get_parent().to_local(global_position + Vector2(38.0 * facing, -65.0))
+	dynamite.launch(facing)
+	get_parent().add_child(dynamite)
+
+
+func _on_animation_finished() -> void:
+	if not throwing:
+		return
+	throwing = false
+	sprite.scale = Vector2.ONE * 0.57
+	sprite.position.y = -63.27
+	_animate_movement()
 
 
 func _shoot() -> void:
