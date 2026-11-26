@@ -1,6 +1,7 @@
 extends Node2D
 
-const ART := preload("res://Assets/Weapon/dynamite.png")
+const DYNAMITE_ART := preload("res://Assets/Weapon/dynamite.png")
+const HEART_ART := preload("res://Assets/Effect/Heart/Heart full.png")
 const PICKUP_RADIUS := 43.0
 
 enum Kind { NONE, DYNAMITE, HEALTH }
@@ -13,12 +14,10 @@ var elapsed := 0.0
 
 func _ready() -> void:
 	z_index = 1
-	if kind == Kind.HEALTH:
-		set_process(false)
-		return
 	sprite = Sprite2D.new()
-	sprite.texture = ART
-	sprite.scale = Vector2.ONE * 0.57
+	sprite.texture = HEART_ART if kind == Kind.HEALTH else DYNAMITE_ART
+	var scale_factor := 40.0 / HEART_ART.get_height() if kind == Kind.HEALTH else 0.57
+	sprite.scale = Vector2.ONE * scale_factor
 	add_child(sprite)
 
 
@@ -40,10 +39,8 @@ func _physics_process(_delta: float) -> void:
 
 func _draw() -> void:
 	if kind == Kind.HEALTH:
-		draw_circle(Vector2.ZERO, 27, Color("#214b3f"), true, -1.0, true)
-		draw_circle(Vector2.ZERO, 27, Color("#97e3ae"), false, 2.5, true)
-		draw_rect(Rect2(-4, -13, 8, 26), Color("#e4ffeb"))
-		draw_rect(Rect2(-13, -4, 26, 8), Color("#e4ffeb"))
+		draw_circle(Vector2.ZERO, 27, Color("#4b212a"), true, -1.0, true)
+		draw_circle(Vector2.ZERO, 27, Color("#f5a39f"), false, 2.5, true)
 	else:
 		draw_circle(Vector2.ZERO, 27, Color(0.32, 0.15, 0.11, 0.88), true, -1.0, true)
 		draw_circle(Vector2.ZERO, 27, Color("#ffd282"), false, 2.5, true)

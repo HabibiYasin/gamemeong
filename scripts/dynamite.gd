@@ -16,13 +16,17 @@ const EXPLOSION := [
 ]
 const BLAST_RADIUS := 118.0
 const PLAYER_BLAST_DAMAGE := 2
+const ENEMY_BLAST_DAMAGE := 2
 const GRAVITY := 1450.0
 
 var fuse := 1.05
 var art: Sprite2D
 var enemy_player: Node2D
+var shooter: Node2D
+var firing_position := Vector2.INF
 var cannonball := false
 var size_scale := 1.0
+var speed_scale := 1.0
 var mob_frames: Array[AtlasTexture] = []
 
 
@@ -34,6 +38,10 @@ func _ready() -> void:
 	collision_layer = 0
 	collision_mask = 5 if cannonball else 1
 	z_index = 4
+	if is_instance_valid(enemy_player):
+		add_to_group(&"enemy_projectiles")
+		if is_instance_valid(shooter):
+			firing_position = shooter.global_position
 	var shape := CircleShape2D.new()
 	shape.radius = 10.0
 	var collider := CollisionShape2D.new()
@@ -58,16 +66,17 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	fuse -= delta
+	var flight_step := delta * speed_scale
+	fuse -= flight_step
 	if fuse <= 0.0:
 		_explode()
 		return
-	velocity.y += (210.0 if cannonball else GRAVITY) * delta
+	velocity.y += (210.0 if cannonball else GRAVITY) * flight_step
 	if mob_frames.is_empty():
-		art.rotation += velocity.x * delta * 0.023
+		art.rotation += velocity.x * flight_step * 0.023
 	else:
 		art.texture = mob_frames[int(maxf(0.0, 1.05 - fuse) * 13.0) % mob_frames.size()]
-	var collision := move_and_collide(velocity * delta)
+	var collision := move_and_collide(velocity * flight_step)
 	if collision:
 		if cannonball:
 			_explode()
@@ -77,7 +86,10 @@ func _physics_process(delta: float) -> void:
 
 func _explode() -> void:
 	if is_instance_valid(enemy_player):
-		enemy_player.take_blast(global_position, 85.0 if cannonball else BLAST_RADIUS, cannonball)
+		var attacker_position := shooter.global_position if is_instance_valid(shooter) else firing_position
+		enemy_player.take_blast(
+			global_position, 85.0 if cannonball else BLAST_RADIUS, cannonball, ENEMY_BLAST_DAMAGE, attacker_position
+		)
 	else:
 		var radius := BLAST_RADIUS * size_scale
 		get_tree().call_group(&"practice_targets", &"take_blast", global_position, radius)

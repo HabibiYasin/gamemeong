@@ -5,14 +5,13 @@ const Pickup := preload("res://scripts/pickup.gd")
 const Upgrades := preload("res://scripts/upgrades.gd")
 const FULL_HEART := preload("res://Assets/Effect/Heart/Heart full.png")
 const EMPTY_HEART := preload("res://Assets/Effect/Heart/Hearth empty.png")
+const FULL_DYNAMITE := preload("res://Assets/Weapon/dynamite.png")
+const EMPTY_DYNAMITE := preload("res://Assets/Weapon/dynamite empty.png")
 const MENU := "res://scenes/menu.tscn"
 const CHARACTER_SELECT := "res://scenes/character_select.tscn"
-const SHOP_BACKGROUND := preload("res://Assets/Background/1/background.png")
-const BOSS_BACKGROUND := preload("res://Assets/Background/3/background.png")
-const COMBAT_BACKGROUNDS := [
-	preload("res://Assets/Background/2/background.png"),
-	preload("res://Assets/Background/4/background.png"),
-]
+const SHOP_BACKGROUND := 1
+const BOSS_BACKGROUND := 3
+const COMBAT_BACKGROUNDS: Array[int] = [2, 4]
 const STAGE_COUNT := 10
 const STARTING_LIVES := 3
 const SHOP_STAGES := [5, 9]
@@ -20,34 +19,36 @@ const COMBAT_WIDTH := 3900
 const SHOP_WIDTH := 1280
 const FLOOR_Y := 615
 const WAVE_COUNT := 3
-const WAVE_DELAY := 0.9
+const WAVE_PROMPT_DURATION := 1.0
 const SPAWN_DISTANCE := 710.0
 const MOB_SPACING := 155.0
 const SPAWN_JITTER := 48.0
-const EASY_MOBS := [Mob.Kind.PISTOL, Mob.Kind.KNIFE, Mob.Kind.DYNAMITE]
 const ALL_MOBS := [Mob.Kind.PISTOL, Mob.Kind.KNIFE, Mob.Kind.DYNAMITE, Mob.Kind.CANNON]
 
 @onready var area_label: Label = %AreaTitle
 @onready var enemy_count: Label = %EnemyCount
+@onready var wave_banner: Label = %WaveBanner
 @onready var health_hearts: HBoxContainer = %HealthHearts
 @onready var life_portrait: TextureRect = %LifePortrait
 @onready var life_count: Label = %LifeCount
-@onready var dynamite_count: Label = %DynamiteCount
+@onready var dynamite_icons: HBoxContainer = %DynamiteIcons
 @onready var victory_panel: Panel = %Victory
 @onready var game_over_overlay: ColorRect = %GameOver
 @onready var upgrade_choice: ColorRect = %UpgradeChoice
 @onready var world: Node2D = $World
 @onready var player: CharacterBody2D = $World/Player
 @onready var camera: Camera2D = $Camera
-@onready var backdrop: Sprite2D = $Parallax/Backdrop
+@onready var stage_background: Node2D = $StageBackground
 
 var stage_number := 1
+var medium_mode := false
+var first_combat_background := -1
 var spare_lives := STARTING_LIVES - 1
 var level_width := COMBAT_WIDTH
 var pending_mobs: Array[Mob.Kind] = []
 var wave_number := 0
 var wave_remaining := 0
-var next_wave_in := 0.0
+var wave_intro_remaining := 0.0
 var choosing_upgrade := false
 var remaining: int:
 	get:
@@ -58,24 +59,30 @@ var platforms: Array[Rect2] = []
 
 
 func _ready() -> void:
-	var stage_name := "Medium"
+	medium_mode = get_tree().get_meta(&"medium_mode", false)
+	var stage_name := "Medium" if medium_mode else "Easy"
 	var mob_count := 15
-	var mob_kinds := ALL_MOBS
+	var background_theme: int
+	if first_combat_background < 0:
+		first_combat_background = randi_range(0, COMBAT_BACKGROUNDS.size() - 1)
 	if stage_number in SHOP_STAGES:
 		stage_name = "Toko"
 		mob_count = 0
 		level_width = SHOP_WIDTH
-		backdrop.texture = SHOP_BACKGROUND
+		background_theme = SHOP_BACKGROUND
 	elif stage_number == STAGE_COUNT:
 		stage_name = "Boss"
-		backdrop.texture = BOSS_BACKGROUND
+		background_theme = BOSS_BACKGROUND
 	else:
-		backdrop.texture = COMBAT_BACKGROUNDS.pick_random()
+		var combat_index := stage_number - 1
+		for shop_stage: int in SHOP_STAGES:
+			if stage_number > shop_stage:
+				combat_index -= 1
+		background_theme = COMBAT_BACKGROUNDS[(first_combat_background + combat_index) % COMBAT_BACKGROUNDS.size()]
 		if stage_number < SHOP_STAGES[0]:
-			stage_name = "Easy"
 			mob_count = 10
-			mob_kinds = EASY_MOBS
 	area_label.text = "Stage %d / %d · %s" % [stage_number, STAGE_COUNT, stage_name]
+	stage_background.build(background_theme, stage_number)
 
 	_add_terrain(Rect2(0, FLOOR_Y, level_width, 45))
 	_add_terrain(Rect2(-32, -500, 32, 1220))
@@ -84,9 +91,9 @@ func _ready() -> void:
 		gate = _add_terrain(Rect2(level_width - 55, -500, 22, FLOOR_Y + 500))
 		_add_platforms()
 		for index in mob_count:
-			pending_mobs.append(mob_kinds[index % mob_kinds.size()])
+			pending_mobs.append(ALL_MOBS[index % ALL_MOBS.size()])
 		pending_mobs.shuffle()
-		_spawn_wave()
+		_start_wave_intro()
 
 	var head := AtlasTexture.new()
 	head.atlas = player.OYEN if player.is_oyen else player.GREY
@@ -94,14 +101,8 @@ func _ready() -> void:
 	head.filter_clip = true
 	life_portrait.texture = head
 	_update_lives()
-	for _index in player.MAX_HEALTH:
-		var heart := TextureRect.new()
-		heart.custom_minimum_size = Vector2(34.0, 34.0)
-		heart.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		heart.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		heart.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		heart.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		health_hearts.add_child(heart)
+	_add_resource_icons(health_hearts, player.MAX_HEALTH, Vector2(34.0, 34.0))
+	_add_resource_icons(dynamite_icons, player.MAX_DYNAMITE, Vector2(38.0, 42.0))
 	player.health_changed.connect(_update_health)
 	player.dynamite_changed.connect(_update_dynamite)
 	player.defeated.connect(_on_player_defeated)
@@ -120,9 +121,7 @@ func _physics_process(delta: float) -> void:
 		return
 	if remaining > 0:
 		if wave_remaining == 0:
-			next_wave_in -= delta
-			if next_wave_in <= 0.0:
-				_spawn_wave()
+			_update_wave_intro(delta)
 		return
 	if player.position.x >= level_width - 35.0:
 		_advance_stage.call_deferred()
@@ -142,6 +141,7 @@ func _advance_stage() -> void:
 	var arena_scene := load(scene_file_path) as PackedScene
 	var next_stage := arena_scene.instantiate()
 	next_stage.stage_number = stage_number + 1
+	next_stage.first_combat_background = first_combat_background
 	next_stage.spare_lives = spare_lives
 	var next_player := next_stage.get_node(^"World/Player")
 	next_player.health = player.health
@@ -161,6 +161,23 @@ func _add_platforms() -> void:
 		_add_terrain(platform, true)
 
 
+func _start_wave_intro() -> void:
+	wave_intro_remaining = WAVE_PROMPT_DURATION * 2.0
+	wave_banner.text = "WAVE %d" % (wave_number + 1)
+	wave_banner.modulate = Color("#ffcf8d")
+	wave_banner.visible = player.health > 0
+
+
+func _update_wave_intro(delta: float) -> void:
+	wave_intro_remaining = maxf(wave_intro_remaining - delta, 0.0)
+	if wave_intro_remaining <= 0.0:
+		wave_banner.hide()
+		_spawn_wave()
+	elif wave_intro_remaining <= WAVE_PROMPT_DURATION and wave_banner.text != "START!":
+		wave_banner.text = "START!"
+		wave_banner.modulate = Color("#fff0c2")
+
+
 func _spawn_wave() -> void:
 	var wave_size := ceili(float(pending_mobs.size()) / (WAVE_COUNT - wave_number))
 	wave_number += 1
@@ -173,6 +190,7 @@ func _spawn_wave() -> void:
 		mob.kind = pending_mobs.pop_back()
 		wave_remaining += 1
 		mob.player = player
+		mob.difficulty_speed = 2.0 if medium_mode else 1.0
 		var distance := SPAWN_DISTANCE + index * MOB_SPACING + randf_range(-SPAWN_JITTER, SPAWN_JITTER)
 		mob.position = Vector2(player.position.x + distance * direction, FLOOR_Y)
 		var drop_kind := Pickup.Kind.NONE
@@ -197,7 +215,7 @@ func _on_mob_defeated(mob: CharacterBody2D, drop_kind: Pickup.Kind) -> void:
 		choosing_upgrade = true
 		_present_upgrade.call_deferred()
 	elif wave_remaining == 0:
-		next_wave_in = WAVE_DELAY
+		_start_wave_intro()
 	_update_status()
 
 
@@ -241,12 +259,38 @@ func _update_status() -> void:
 
 func _update_camera() -> void:
 	camera.position = Vector2(clampf(player.position.x + 175.0, 640.0, level_width - 640.0), 360.0)
+	if stage_number in SHOP_STAGES:
+		stage_background.scroll_shop(player.position.x)
+
+
+func _add_resource_icons(row: HBoxContainer, count: int, slot_size: Vector2) -> void:
+	for _index in count:
+		var icon := TextureRect.new()
+		icon.custom_minimum_size = slot_size
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(icon)
+
+
+func _update_resource_icons(row: HBoxContainer, count: int, full: Texture2D, empty: Texture2D) -> void:
+	for index in row.get_child_count():
+		var icon: TextureRect = row.get_child(index)
+		icon.texture = full if index < count else empty
 
 
 func _update_health(remaining_health: int) -> void:
-	for index in health_hearts.get_child_count():
-		var heart: TextureRect = health_hearts.get_child(index)
-		heart.texture = FULL_HEART if index < remaining_health else EMPTY_HEART
+	_update_resource_icons(health_hearts, remaining_health, FULL_HEART, EMPTY_HEART)
+	if remaining_health > 0:
+		wave_banner.visible = wave_intro_remaining > 0.0
+		return
+	wave_banner.hide()
+	get_tree().call_group(&"enemy_projectiles", &"queue_free")
+	var mobs := get_tree().get_nodes_in_group(&"enemy_mobs")
+	mobs.shuffle()
+	for index in mobs.size():
+		mobs[index].begin_scattering(-1 if index % 2 == 0 else 1)
 
 
 func _update_lives() -> void:
@@ -254,7 +298,7 @@ func _update_lives() -> void:
 
 
 func _update_dynamite(stock: int) -> void:
-	dynamite_count.text = "Dinamit  %d / %d" % [stock, player.MAX_DYNAMITE]
+	_update_resource_icons(dynamite_icons, stock, FULL_DYNAMITE, EMPTY_DYNAMITE)
 
 
 func _on_player_defeated() -> void:

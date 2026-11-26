@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/character_select.gd" id="1"]
 [ext_resource type="Texture2D" path="res://Assets/Background/2/background.png" id="2"]
@@ -48,6 +48,8 @@ corner_radius_bottom_right = 12
 shadow_color = Color(0.12, 0.05, 0.04, 0.7)
 shadow_size = 9
 shadow_offset = Vector2(0, 5)
+
+[sub_resource type="ButtonGroup" id="ModeGroup"]
 
 [node name="CharacterSelect" type="Control" node_paths=PackedStringArray("cards")]
 anchors_preset = 15
@@ -138,12 +140,115 @@ text = "Oyen"
 horizontal_alignment = 1
 vertical_alignment = 1
 
+[node name="Difficulty" type="Control" parent="."]
+visible = false
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="HeroName" type="Label" parent="Difficulty"]
+anchor_right = 1.0
+offset_top = 155.0
+offset_bottom = 200.0
+theme_override_colors/font_color = Color(1, 0.8, 0.62, 1)
+theme_override_fonts/font = SubResource("TitleFont")
+theme_override_font_sizes/font_size = 23
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Modes" type="HBoxContainer" parent="Difficulty"]
+offset_left = 307.0
+offset_top = 261.0
+offset_right = 973.0
+offset_bottom = 441.0
+theme_override_constants/separation = 22
+alignment = 1
+
+[node name="EasyMode" type="Button" parent="Difficulty/Modes"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(316, 174)
+layout_mode = 2
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("Card")
+theme_override_styles/hover = SubResource("SelectedCard")
+theme_override_styles/pressed = SubResource("SelectedCard")
+theme_override_styles/hover_pressed = SubResource("SelectedCard")
+toggle_mode = true
+button_pressed = true
+button_group = SubResource("ModeGroup")
+
+[node name="Title" type="Label" parent="Difficulty/Modes/EasyMode"]
+anchor_right = 1.0
+offset_top = 28.0
+offset_bottom = 78.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.83, 0.63, 1)
+theme_override_fonts/font = SubResource("TitleFont")
+theme_override_font_sizes/font_size = 35
+text = "Easy"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Details" type="Label" parent="Difficulty/Modes/EasyMode"]
+anchor_right = 1.0
+offset_left = 24.0
+offset_top = 88.0
+offset_right = -24.0
+offset_bottom = 148.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.9, 0.81, 1)
+theme_override_font_sizes/font_size = 19
+text = "Kecepatan musuh standar"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="MediumMode" type="Button" parent="Difficulty/Modes"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(316, 174)
+layout_mode = 2
+focus_mode = 0
+mouse_default_cursor_shape = 2
+theme_override_styles/normal = SubResource("Card")
+theme_override_styles/hover = SubResource("SelectedCard")
+theme_override_styles/pressed = SubResource("SelectedCard")
+theme_override_styles/hover_pressed = SubResource("SelectedCard")
+toggle_mode = true
+button_group = SubResource("ModeGroup")
+
+[node name="Title" type="Label" parent="Difficulty/Modes/MediumMode"]
+anchor_right = 1.0
+offset_top = 28.0
+offset_bottom = 78.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.83, 0.63, 1)
+theme_override_fonts/font = SubResource("TitleFont")
+theme_override_font_sizes/font_size = 35
+text = "Medium"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Details" type="Label" parent="Difficulty/Modes/MediumMode"]
+anchor_right = 1.0
+offset_left = 24.0
+offset_top = 88.0
+offset_right = -24.0
+offset_bottom = 148.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.9, 0.81, 1)
+theme_override_font_sizes/font_size = 19
+text = "Mob pisau, peluru pistol, dan\nbola meriam 2× lebih cepat"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
 [node name="Guide" type="Label" parent="."]
 anchor_right = 1.0
 offset_top = 614.0
 offset_bottom = 670.0
 theme_override_colors/font_color = Color(1, 0.89, 0.77, 1)
-theme_override_font_sizes/font_size = 23
-text = "A / D  Pilih     ·     J  Konfirmasi     ·     Esc  Kembali"
+theme_override_font_sizes/font_size = 21
+text = "← / → atau A / D  Pilih karakter     ·     J  Lanjut     ·     Esc  Kembali"
 horizontal_alignment = 1
 vertical_alignment = 1

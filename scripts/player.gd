@@ -39,9 +39,10 @@ const SHOT_INTERVAL := 0.24
 const OYEN_SHOT_INTERVAL := SHOT_INTERVAL / 0.50
 const SHOT_POSE_DURATION := 0.20
 const DEATH_BLINK_DURATION := 2.0
-const HIDDEN_DURATION := 2.0
+const HIDDEN_DURATION := 1.0
 const RESPAWN_BLINK_DURATION := 2.0
 const BLINK_INTERVAL := 0.15
+const MISS_LABEL_DURATION := 1.0
 
 @onready var sprite: AnimatedSprite2D = $Sprite
 @onready var shield: Sprite2D = $Shield
@@ -384,22 +385,27 @@ func _reset_sprite_layout() -> void:
 	sprite.position.y = -63.27
 
 
-func take_projectile_hit(point: Vector2, direction: int) -> void:
-	take_hit(point, direction, true)
+func take_projectile_hit(point: Vector2, direction: int, attacker_position: Vector2 = Vector2.INF) -> void:
+	take_hit(point, direction, true, 1, attacker_position)
 
 
-func take_hit(_point: Vector2, _direction: int, projectile: bool = false) -> void:
+func take_hit(
+	_point: Vector2, _direction: int, projectile: bool = false, damage: int = 1,
+	attacker_position: Vector2 = Vector2.INF
+) -> void:
 	if hit_cooldown > 0.0 or health <= 0 or respawn_blink_left > 0.0:
 		return
 	var miss_chance := 0.10 * _upgrade_level(Upgrades.Id.MISS_YOU)
 	if projectile and miss_chance > 0.0 and randf() < miss_chance:
+		if attacker_position.is_finite():
+			_show_miss(attacker_position)
 		return
 	if _upgrade_level(Upgrades.Id.SHIELD) > 0 and shield_cooldown <= 0.0:
 		shield_cooldown = SHIELD_COOLDOWN
 		_update_shield()
 		return
 	hit_cooldown = 0.62
-	health -= 1
+	health = maxi(health - damage, 0)
 	health_changed.emit(health)
 	if throwing and not dynamite_released and health > 0:
 		refill_dynamite()
@@ -413,6 +419,30 @@ func take_hit(_point: Vector2, _direction: int, projectile: bool = false) -> voi
 		sprite.set_frame_and_progress(0, 0.0)
 
 
-func take_blast(center: Vector2, radius: float, projectile: bool = false) -> void:
+func take_blast(
+	center: Vector2, radius: float, projectile: bool = false, damage: int = 1,
+	attacker_position: Vector2 = Vector2.INF
+) -> void:
 	if (global_position + Vector2(0.0, -51.0)).distance_squared_to(center) <= radius * radius:
-		take_hit(center, 1 if global_position.x >= center.x else -1, projectile)
+		take_hit(center, 1 if global_position.x >= center.x else -1, projectile, damage, attacker_position)
+
+
+func _show_miss(attacker_position: Vector2) -> void:
+	var label := Label.new()
+	label.text = "Miss"
+	label.size = Vector2(96.0, 32.0)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.z_index = 6
+	label.add_theme_color_override(&"font_color", Color("#ff4f4f"))
+	label.add_theme_color_override(&"font_outline_color", Color("#3a1a1d"))
+	label.add_theme_constant_override(&"outline_size", 5)
+	label.add_theme_font_size_override(&"font_size", 26)
+	label.position = get_parent().to_local(attacker_position) + Vector2(-48.0, -169.0)
+	get_parent().add_child(label)
+
+	var rise := label.create_tween().set_parallel()
+	rise.tween_property(label, "position:y", label.position.y - 56.0, MISS_LABEL_DURATION)
+	rise.tween_property(label, "modulate:a", 0.0, MISS_LABEL_DURATION)
+	rise.chain().tween_callback(label.queue_free)
