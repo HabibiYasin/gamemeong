@@ -15,17 +15,19 @@ const EXPLOSION := [
 	preload("res://Assets/Effect/dynamite_explosion/2_9.png")
 ]
 const BLAST_RADIUS := 118.0
+const PLAYER_BLAST_DAMAGE := 2
 const GRAVITY := 1450.0
 
 var fuse := 1.05
 var art: Sprite2D
 var enemy_player: Node2D
 var cannonball := false
+var size_scale := 1.0
 var mob_frames: Array[AtlasTexture] = []
 
 
-func launch(direction: int) -> void:
-	velocity = Vector2(490.0 * direction, -460.0)
+func launch(direction: int, distance_scale: float = 1.0) -> void:
+	velocity = Vector2(490.0 * direction * distance_scale, -460.0)
 
 
 func _ready() -> void:
@@ -39,7 +41,7 @@ func _ready() -> void:
 	add_child(collider)
 	art = Sprite2D.new()
 	art.texture = ART
-	art.scale = Vector2.ONE * 0.48
+	art.scale = Vector2.ONE * (0.48 * size_scale)
 	if cannonball:
 		art.texture = CANNON_ART
 		art.scale = Vector2.ONE * 0.68
@@ -51,7 +53,7 @@ func _ready() -> void:
 			frame.filter_clip = true
 			mob_frames.append(frame)
 		art.texture = mob_frames[0]
-		art.scale = Vector2.ONE * 0.056
+		art.scale = Vector2.ONE * 0.168
 	add_child(art)
 
 
@@ -75,10 +77,11 @@ func _physics_process(delta: float) -> void:
 
 func _explode() -> void:
 	if is_instance_valid(enemy_player):
-		enemy_player.take_blast(global_position, 85.0 if cannonball else BLAST_RADIUS)
+		enemy_player.take_blast(global_position, 85.0 if cannonball else BLAST_RADIUS, cannonball)
 	else:
-		get_tree().call_group(&"practice_targets", &"take_blast", global_position, BLAST_RADIUS)
-		get_tree().call_group(&"enemy_mobs", &"take_blast", global_position, BLAST_RADIUS)
+		var radius := BLAST_RADIUS * size_scale
+		get_tree().call_group(&"practice_targets", &"take_blast", global_position, radius)
+		get_tree().call_group(&"enemy_mobs", &"take_blast", global_position, radius, PLAYER_BLAST_DAMAGE)
 
 	var frames := SpriteFrames.new()
 	frames.set_animation_speed(&"default", 20.0)
@@ -87,7 +90,8 @@ func _explode() -> void:
 		frames.add_frame(&"default", texture)
 	var effect := AnimatedSprite2D.new()
 	effect.sprite_frames = frames
-	effect.position = position + Vector2(0.0, -44.0)
+	effect.position = position + Vector2(0.0, -44.0 * size_scale)
+	effect.scale = Vector2.ONE * size_scale
 	effect.z_index = 5
 	effect.animation_finished.connect(effect.queue_free)
 	get_parent().add_child(effect)

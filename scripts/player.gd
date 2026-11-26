@@ -3,11 +3,13 @@ extends CharacterBody2D
 signal health_changed(remaining: int)
 signal dynamite_changed(remaining: int)
 signal defeated
+signal respawn_finished
 
 const MAX_HEALTH := 5
 const MAX_DYNAMITE := 3
 const Bullet := preload("res://scripts/bullet.gd")
 const Dynamite := preload("res://scripts/dynamite.gd")
+const Upgrades := preload("res://scripts/upgrades.gd")
 const GREY := preload("res://Assets/Character/Main/Grey full.png")
 const OYEN := preload("res://Assets/Character/Main/Oyen full.png")
 const THROW_ATLAS := preload("res://Assets/Character/Main/Grey throw dynamite.png")
@@ -31,11 +33,18 @@ const ACCELERATION := 2500.0
 const GRAVITY := 1750.0
 const JUMP_SPEED := 800.0
 const JUMP_GRACE := 0.10
+const DOUBLE_JUMP_COOLDOWN := 2.0
+const SHIELD_COOLDOWN := 10.0
 const SHOT_INTERVAL := 0.24
-const OYEN_SHOT_INTERVAL := SHOT_INTERVAL / 0.70
+const OYEN_SHOT_INTERVAL := SHOT_INTERVAL / 0.50
 const SHOT_POSE_DURATION := 0.20
+const DEATH_BLINK_DURATION := 2.0
+const HIDDEN_DURATION := 2.0
+const RESPAWN_BLINK_DURATION := 2.0
+const BLINK_INTERVAL := 0.15
 
 @onready var sprite: AnimatedSprite2D = $Sprite
+@onready var shield: Sprite2D = $Shield
 
 var facing := 1
 var coyote_time := 0.0
@@ -49,6 +58,12 @@ var aim := 0
 var health := MAX_HEALTH
 var dynamite_stock := MAX_DYNAMITE
 var hit_cooldown := 0.0
+var upgrade_levels: Dictionary[Upgrades.Id, int] = {}
+var air_jump_available := true
+var double_jump_cooldown := 0.0
+var shield_cooldown := 0.0
+var death_time_left := 0.0
+var respawn_blink_left := 0.0
 
 
 func _ready() -> void:
@@ -63,6 +78,8 @@ func _ready() -> void:
 	_add_animation(frames, &"jump", 1380 if not is_oyen else 1543, [1], 1.0)
 	_add_animation(frames, &"fall", 1380 if not is_oyen else 1543, [2], 1.0)
 	_add_animation(frames, &"throw", 724 if not is_oyen else 1099, [0, 1, 2, 3], 12.0, false)
+	_add_animation(frames, &"hurt", 1141 if not is_oyen else 1320, [0, 1, 2, 3], 16.0, false)
+	_add_animation(frames, &"fall_down", 1628 if not is_oyen else 1767, [0, 1, 2, 3], 9.0, false)
 	var aim_atlases := OYEN_AIM if is_oyen else GREY_AIM
 	for index in aim_atlases.size():
 		var pose_columns: Array[int] = [1]
@@ -74,6 +91,9 @@ func _ready() -> void:
 	sprite.frame_changed.connect(_on_sprite_frame_changed)
 	sprite.animation_finished.connect(_on_animation_finished)
 	sprite.play(&"idle")
+	_update_shield()
+	if respawn_blink_left > 0.0:
+		_blink(RESPAWN_BLINK_DURATION - respawn_blink_left)
 
 
 func _add_animation(
@@ -103,6 +123,8 @@ func _add_frames(
 		var frame := AtlasTexture.new()
 		frame.atlas = atlas
 		var frame_origin := Vector2i(column * size.x, maxi(0, bottom - size.y))
+		if animation == &"fall_down" and atlas == GREY:
+			frame_origin.x += [0, 0, -12, -8][column]
 		var width := mini(size.x, atlas.get_width() - frame_origin.x)
 		frame.region = Rect2i(frame_origin, Vector2i(width, size.y))
 		frame.filter_clip = true
@@ -110,16 +132,34 @@ func _add_frames(
 
 
 func _physics_process(delta: float) -> void:
+	if health <= 0:
+		if not is_on_floor():
+			velocity.y += GRAVITY * delta
+		move_and_slide()
+		_update_death(delta)
+		return
+	if respawn_blink_left > 0.0:
+		respawn_blink_left = maxf(respawn_blink_left - delta, 0.0)
+		if respawn_blink_left > 0.0:
+			_blink(RESPAWN_BLINK_DURATION - respawn_blink_left)
+		else:
+			show()
+			respawn_finished.emit()
 	hit_cooldown = maxf(hit_cooldown - delta, 0.0)
-	sprite.modulate = Color("#ff9380") if hit_cooldown > 0.42 else Color.WHITE
+	double_jump_cooldown = maxf(double_jump_cooldown - delta, 0.0)
+	if shield_cooldown > 0.0:
+		shield_cooldown = maxf(shield_cooldown - delta, 0.0)
+		if shield_cooldown == 0.0:
+			_update_shield()
 	var direction := Input.get_axis(&"move_left", &"move_right")
-	if direction != 0.0 and not throwing:
+	if direction != 0.0 and not throwing and sprite.animation != &"hurt":
 		facing = 1 if direction > 0.0 else -1
 		sprite.flip_h = facing < 0
 	velocity.x = move_toward(velocity.x, direction * SPEED, ACCELERATION * delta)
 
 	if is_on_floor():
 		coyote_time = JUMP_GRACE
+		air_jump_available = true
 	else:
 		coyote_time = maxf(coyote_time - delta, 0.0)
 		velocity.y += GRAVITY * delta
@@ -127,7 +167,11 @@ func _physics_process(delta: float) -> void:
 		jump_buffer = JUMP_GRACE
 	else:
 		jump_buffer = maxf(jump_buffer - delta, 0.0)
-	if coyote_time > 0.0 and jump_buffer > 0.0:
+	var can_air_jump := air_jump_available and double_jump_cooldown <= 0.0 and _upgrade_level(Upgrades.Id.DOUBLE_JUMP) > 0
+	if jump_buffer > 0.0 and (coyote_time > 0.0 or can_air_jump):
+		if coyote_time <= 0.0:
+			air_jump_available = false
+			double_jump_cooldown = DOUBLE_JUMP_COOLDOWN
 		velocity.y = -JUMP_SPEED
 		coyote_time = 0.0
 		jump_buffer = 0.0
@@ -139,7 +183,7 @@ func _physics_process(delta: float) -> void:
 	shot_cooldown = maxf(shot_cooldown - delta, 0.0)
 	if not Input.is_action_pressed(&"shoot"):
 		shoot_ready = true
-	if throwing:
+	if throwing or sprite.animation == &"hurt":
 		return
 	if Input.is_action_just_pressed(&"throw_dynamite") and dynamite_stock > 0:
 		_start_throw()
@@ -169,21 +213,88 @@ func refill_dynamite() -> bool:
 	return true
 
 
+func restore_health() -> bool:
+	if health <= 0 or health >= MAX_HEALTH:
+		return false
+	health += 1
+	health_changed.emit(health)
+	return true
+
+
+func respawn() -> void:
+	health = MAX_HEALTH
+	hit_cooldown = 0.0
+	respawn_blink_left = RESPAWN_BLINK_DURATION
+	velocity = Vector2.ZERO
+	coyote_time = 0.0
+	jump_buffer = 0.0
+	shot_cooldown = 0.0
+	air_jump_available = true
+	shoot_ready = not Input.is_action_pressed(&"shoot")
+	aim = 0
+	_reset_sprite_layout()
+	sprite.play(&"idle")
+	show()
+	health_changed.emit(health)
+
+
+func _update_death(delta: float) -> void:
+	if death_time_left <= 0.0:
+		return
+	death_time_left = maxf(death_time_left - delta, 0.0)
+	if death_time_left > HIDDEN_DURATION:
+		_blink(DEATH_BLINK_DURATION + HIDDEN_DURATION - death_time_left)
+	else:
+		hide()
+	if death_time_left == 0.0:
+		defeated.emit()
+
+
+func _blink(elapsed: float) -> void:
+	visible = floori(elapsed / BLINK_INTERVAL) % 2 == 0
+
+
+func apply_upgrade(id: Upgrades.Id) -> void:
+	var level := _upgrade_level(id)
+	if level >= Upgrades.DATA[id].max_level:
+		return
+	upgrade_levels[id] = level + 1
+	if id == Upgrades.Id.SHIELD:
+		_update_shield()
+
+
+func _upgrade_level(id: Upgrades.Id) -> int:
+	return upgrade_levels.get(id, 0)
+
+
+func _update_shield() -> void:
+	shield.visible = _upgrade_level(Upgrades.Id.SHIELD) > 0 and shield_cooldown <= 0.0
+
+
 func _on_sprite_frame_changed() -> void:
 	if not throwing or dynamite_released or sprite.animation != &"throw" or sprite.frame < 2:
 		return
 	dynamite_released = true
+	_spawn_dynamite(1.0)
+	if _upgrade_level(Upgrades.Id.DOUBLE_D) > 0:
+		_spawn_dynamite(0.65)
+
+
+func _spawn_dynamite(distance_scale: float) -> void:
 	var dynamite := Dynamite.new()
 	dynamite.position = get_parent().to_local(global_position + Vector2(38.0 * facing, -65.0))
-	dynamite.launch(facing)
+	dynamite.size_scale = 1.0 + 0.50 * _upgrade_level(Upgrades.Id.BIG_D)
+	dynamite.launch(facing, distance_scale)
 	get_parent().add_child(dynamite)
 
 
 func _on_animation_finished() -> void:
-	if not throwing:
-		return
-	throwing = false
-	_animate_movement()
+	match sprite.animation:
+		&"fall_down":
+			death_time_left = DEATH_BLINK_DURATION + HIDDEN_DURATION
+		&"hurt", &"throw":
+			throwing = false
+			_animate_movement()
 
 
 func _shoot() -> void:
@@ -206,21 +317,38 @@ func _shoot() -> void:
 		var depression := 45.0 if is_oyen else 58.0
 		forward = forward.rotated(deg_to_rad(depression * facing))
 		muzzle_offset = Vector2(36.0, -18.0)
+	var range_scale := 1.0 / 3.0 if is_oyen else 1.0
 	if is_oyen:
 		for angle: float in [-PI / 4.0, 0.0, PI / 4.0]:
-			_spawn_bullet(forward.rotated(angle), muzzle_offset, 1.0 / 3.0)
+			_fire_forward(forward.rotated(angle), muzzle_offset, range_scale)
 	else:
-		_spawn_bullet(forward, muzzle_offset)
+		_fire_forward(forward, muzzle_offset, range_scale)
+	var back_shots := _upgrade_level(Upgrades.Id.BACK_SHOT)
+	for index in back_shots:
+		var height := -55.0 + (index - (back_shots - 1) * 0.5) * 12.0
+		_spawn_bullet(Vector2(-facing, 0.0), Vector2(-43.0, height), range_scale)
 
 
 func _shot_interval() -> float:
 	return OYEN_SHOT_INTERVAL if is_oyen else SHOT_INTERVAL
 
 
-func _spawn_bullet(direction: Vector2, muzzle_offset: Vector2, range_scale: float = 1.0) -> void:
+func _fire_forward(direction: Vector2, muzzle_offset: Vector2, range_scale: float) -> void:
+	if _upgrade_level(Upgrades.Id.DOUBLE_SHOT) == 0:
+		_spawn_bullet(direction, muzzle_offset, range_scale)
+		return
+	var separation := direction.orthogonal() * 7.0
+	_spawn_bullet(direction, muzzle_offset, range_scale, -separation)
+	_spawn_bullet(direction, muzzle_offset, range_scale, separation)
+
+
+func _spawn_bullet(
+	direction: Vector2, muzzle_offset: Vector2, range_scale: float, separation: Vector2 = Vector2.ZERO
+) -> void:
 	var bullet := Bullet.new()
-	var origin := global_position + Vector2(0.0, -55.0)
-	var muzzle := global_position + Vector2(muzzle_offset.x * facing, muzzle_offset.y)
+	bullet.size_scale = 1.0 + _upgrade_level(Upgrades.Id.BIG_SHOT)
+	var origin := global_position + Vector2(0.0, -55.0) + separation
+	var muzzle := global_position + Vector2(muzzle_offset.x * facing, muzzle_offset.y) + separation
 	bullet.setup(origin, muzzle, direction, range_scale)
 	get_parent().add_child(bullet)
 
@@ -256,16 +384,35 @@ func _reset_sprite_layout() -> void:
 	sprite.position.y = -63.27
 
 
-func take_hit(_point: Vector2, _direction: int) -> void:
-	if hit_cooldown > 0.0 or health <= 0:
+func take_projectile_hit(point: Vector2, direction: int) -> void:
+	take_hit(point, direction, true)
+
+
+func take_hit(_point: Vector2, _direction: int, projectile: bool = false) -> void:
+	if hit_cooldown > 0.0 or health <= 0 or respawn_blink_left > 0.0:
+		return
+	var miss_chance := 0.10 * _upgrade_level(Upgrades.Id.MISS_YOU)
+	if projectile and miss_chance > 0.0 and randf() < miss_chance:
+		return
+	if _upgrade_level(Upgrades.Id.SHIELD) > 0 and shield_cooldown <= 0.0:
+		shield_cooldown = SHIELD_COOLDOWN
+		_update_shield()
 		return
 	hit_cooldown = 0.62
 	health -= 1
 	health_changed.emit(health)
+	if throwing and not dynamite_released and health > 0:
+		refill_dynamite()
+	throwing = false
+	_reset_sprite_layout()
 	if health == 0:
-		defeated.emit()
+		velocity.x = 0.0
+		sprite.play(&"fall_down")
+	else:
+		sprite.play(&"hurt")
+		sprite.set_frame_and_progress(0, 0.0)
 
 
-func take_blast(center: Vector2, radius: float) -> void:
+func take_blast(center: Vector2, radius: float, projectile: bool = false) -> void:
 	if (global_position + Vector2(0.0, -51.0)).distance_squared_to(center) <= radius * radius:
-		take_hit(center, 1 if global_position.x >= center.x else -1)
+		take_hit(center, 1 if global_position.x >= center.x else -1, projectile)

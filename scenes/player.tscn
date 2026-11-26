@@ -1,6 +1,7 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/player.gd" id="1"]
+[ext_resource type="Texture2D" path="res://Assets/Effect/Shield/shield.png" id="2"]
 
 [sub_resource type="CapsuleShape2D" id="Collider"]
 radius = 21.0
@@ -19,3 +20,9 @@ shape = SubResource("Collider")
 [node name="Sprite" type="AnimatedSprite2D" parent="."]
 position = Vector2(0, -63.27)
 scale = Vector2(0.57, 0.57)
+
+[node name="Shield" type="Sprite2D" parent="."]
+visible = false
+position = Vector2(0, -61)
+scale = Vector2(0.14, 0.14)
+texture = ExtResource("2")

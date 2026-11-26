@@ -8,6 +8,7 @@ var direction := Vector2.RIGHT
 var lifetime := LIFETIME
 var previous_position := Vector2.ZERO
 var hostile := false
+var size_scale := 1.0
 
 
 func setup(origin: Vector2, muzzle: Vector2, shot_direction: Vector2, range_scale: float = 1.0) -> void:
@@ -21,7 +22,7 @@ func _ready() -> void:
 	z_index = 4
 	var sprite := Sprite2D.new()
 	sprite.texture = ART
-	sprite.scale = Vector2(0.32, 0.32)
+	sprite.scale = Vector2.ONE * (0.32 * size_scale)
 	sprite.offset.x = -ART.get_width() * 0.5
 	sprite.rotation = direction.angle()
 	add_child(sprite)
@@ -39,8 +40,11 @@ func _physics_process(delta: float) -> void:
 		hit = space.intersect_ray(PhysicsRayQueryParameters2D.create(global_position, next_position, mask))
 	if not hit.is_empty():
 		var collider: Object = hit.collider
-		if collider.has_method(&"take_hit"):
-			collider.take_hit(hit.position, 1 if direction.x > 0.0 else -1)
+		var impact_direction := 1 if direction.x > 0.0 else -1
+		if hostile and collider.has_method(&"take_projectile_hit"):
+			collider.take_projectile_hit(hit.position, impact_direction)
+		elif collider.has_method(&"take_hit"):
+			collider.take_hit(hit.position, impact_direction)
 		queue_free()
 		return
 

@@ -1,8 +1,8 @@
 [gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/arena.gd" id="1"]
-[ext_resource type="Texture2D" path="res://Assets/Background/2/background.png" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/upgrade_choice.tscn" id="4"]
 
 [sub_resource type="SystemFont" id="HeadingFont"]
 font_names = PackedStringArray("Georgia", "DejaVu Serif", "Liberation Serif")
@@ -44,7 +44,6 @@ repeat_times = 2
 [node name="Backdrop" type="Sprite2D" parent="Parallax"]
 modulate = Color(0.94, 0.9, 0.86, 1)
 scale = Vector2(0.6666667, 0.6666667)
-texture = ExtResource("2")
 centered = false
 
 [node name="Camera" type="Camera2D" parent="."]
@@ -53,7 +52,9 @@ process_callback = 0
 position_smoothing_enabled = true
 position_smoothing_speed = 11.0
 
-[node name="Player" parent="." instance=ExtResource("3")]
+[node name="World" type="Node2D" parent="."]
+
+[node name="Player" parent="World" instance=ExtResource("3")]
 position = Vector2(147, 615)
 z_index = 2
 
@@ -62,7 +63,7 @@ z_index = 2
 [node name="ArenaTitle" type="Panel" parent="Interface"]
 offset_left = 32.0
 offset_top = 28.0
-offset_right = 265.0
+offset_right = 315.0
 offset_bottom = 84.0
 mouse_filter = 2
 theme_override_styles/panel = SubResource("TopPanel")
@@ -80,7 +81,7 @@ grow_vertical = 2
 theme_override_colors/font_color = Color(1, 0.865, 0.68, 1)
 theme_override_fonts/font = SubResource("HeadingFont")
 theme_override_font_sizes/font_size = 21
-text = "Pos 1 dari 10"
+text = "Stage 1 / 10 · Easy"
 vertical_alignment = 1
 
 [node name="Status" type="Panel" parent="Interface"]
@@ -100,7 +101,38 @@ anchor_bottom = 1.0
 theme_override_colors/font_color = Color(1, 0.708, 0.411, 1)
 theme_override_fonts/font = SubResource("InterfaceFont")
 theme_override_font_sizes/font_size = 19
-text = "Maju ke kanan"
+text = "Gel. 1/3 · 4 mob"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Lives" type="Panel" parent="Interface"]
+offset_left = 434.0
+offset_top = 28.0
+offset_right = 525.0
+offset_bottom = 84.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("TopPanel")
+
+[node name="LifePortrait" type="TextureRect" parent="Interface/Lives"]
+unique_name_in_owner = true
+offset_left = 8.0
+offset_top = 5.0
+offset_right = 55.0
+offset_bottom = 51.0
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="LifeCount" type="Label" parent="Interface/Lives"]
+unique_name_in_owner = true
+offset_left = 55.0
+offset_right = 84.0
+offset_bottom = 56.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.865, 0.68, 1)
+theme_override_fonts/font = SubResource("InterfaceFont")
+theme_override_font_sizes/font_size = 22
+text = "×2"
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -112,18 +144,15 @@ offset_bottom = 84.0
 mouse_filter = 2
 theme_override_styles/panel = SubResource("TopPanel")
 
-[node name="HealthCount" type="Label" parent="Interface/Health"]
+[node name="HealthHearts" type="HBoxContainer" parent="Interface/Health"]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-theme_override_colors/font_color = Color(1, 0.865, 0.68, 1)
-theme_override_fonts/font = SubResource("InterfaceFont")
-theme_override_font_sizes/font_size = 20
-text = "Nyawa  5 / 5"
-horizontal_alignment = 1
-vertical_alignment = 1
+mouse_filter = 2
+theme_override_constants/separation = 4
+alignment = 1
 
 [node name="DynamiteStock" type="Panel" parent="Interface"]
 offset_left = 757.0
@@ -164,7 +193,7 @@ theme_override_colors/default_color = Color(1, 0.883, 0.779, 1)
 theme_override_fonts/normal_font = SubResource("InterfaceFont")
 theme_override_font_sizes/normal_font_size = 18
 bbcode_enabled = true
-text = "[center][color=#ffb96d]A / D[/color] Jalan     ?     [color=#ffb96d]Spasi / ?[/color] Lompat     ?     [color=#ffb96d]W / S[/color] Bidik     ?     [color=#ffb96d]J[/color] Tembak     ?     [color=#ffb96d]K[/color] Dinamit     ?     [color=#ffb96d]R[/color] Ulang     ?     [color=#ffb96d]Esc[/color] Menu[/center]"
+text = "[center][color=#ffb96d]A / D[/color] Jalan     ?     [color=#ffb96d]Spasi / ?[/color] Lompat     ?     [color=#ffb96d]W / S[/color] Bidik     ?     [color=#ffb96d]J[/color] Tembak     ?     [color=#ffb96d]K[/color] Dinamit     ?     [color=#ffb96d]R[/color] Ulang run     ?     [color=#ffb96d]Esc[/color] Menu[/center]"
 scroll_active = false
 autowrap_mode = 0
 
@@ -185,7 +214,7 @@ offset_bottom = 127.0
 theme_override_colors/font_color = Color(1, 0.75, 0.44, 1)
 theme_override_fonts/font = SubResource("HeadingFont")
 theme_override_font_sizes/font_size = 42
-text = "Misi Selesai"
+text = "Run Selesai"
 horizontal_alignment = 1
 vertical_alignment = 1
 
@@ -199,6 +228,9 @@ theme_override_font_sizes/font_size = 20
 text = "R  Main lagi     ·     Esc  Menu utama"
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="UpgradeChoice" parent="Interface" instance=ExtResource("4")]
+unique_name_in_owner = true
 
 [node name="GameOver" type="ColorRect" parent="Interface"]
 unique_name_in_owner = true
